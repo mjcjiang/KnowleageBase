@@ -1,0 +1,48 @@
+* quote_server project:
+** <2022-04-12>
+*** DONE blob_dumper finish
+*** TODO change Makefile to support multi binary file build
+*** DONE blob_dumper support logging
+** <2022-04-13>
+   blob_dumper落所有股票行情功能已经初步完成:
+   
+   1. 用配置文件定制化每条数据流的配置信息：
+      * 数据类型
+      * 用户id
+      * 是否进行全市场股票行情订阅
+      * 订阅股票列表
+      * 落地文件前缀
+      另外，配置文件中也包含“落地文件的位置”，“quote_server监听URL”，
+      和“落地结束时间”等全局信息；详细见文件截图。
+
+   2. 用模拟数据测试了6种数据的落地情况，文件正常落地，数据结果正常；
+      详细参见截图；
+
+   3. 当天落地文件名中打上当天日期信息；
+      当天dumper如果故障重启，会在当天的文件上追加写入。
+** <2022-04-14 周四>
+*** quote_server Makefile refactor, support Multi excuteble file generate;
+*** deal with all the g++ warnings in quote server project
+** <2022-04-24 周日>
+   quote_server 和 dumper工具目前工作进展：
+   1. quote_server目前支持定制化数据订阅，目前支持：
+      A. 全量的raw数据
+      B. blob数据（逐笔成交，逐笔委托）
+   2. dumper工具现在支持定制化数据落地，用户可以通过配置文件的形式，制定想要落地的数据类型（参见图片）。目前支持：
+      A. 全量的raw数据
+      B. blob数据（逐笔成交，逐笔委托）
+   3. dumper落地目录和文件组织树状图（参见图片）：
+      A. “数据类型 + 运行当天日期” 为 一级目录；
+      B. 一级目录之下，按照“消息类型”创建二级目录；
+      C. 二级目录之下，以“产品ID.txt”为名称落地具体数据； 
+** <2022-04-27 周三> 
+   1. [Done] deploy quote_server to sip mechine:
+   
+** project problem list:
+   1. In stock_list class, use share_ptr or unique_ptr to manage resouce.
+   2. Add error process and some log
+   3. [TODO] Just use string instid as the hash key, do not use number any more
+
+* UserId and Passwd
+** Gerrit：
+   2wsx1qazhjiang

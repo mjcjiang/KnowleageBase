@@ -1,0 +1,373 @@
+* Linux/Unix command and Shell scripts:
+** find
+*** find *.h files and *.cxx files in a directory
+    find . -name \*.h -print -o -name \*.cxx -print
+** awk
+*** task: c/c++ struct fields refactor
+    typedef struct _Source {
+        int field1;
+	int field2;
+	int field3;
+	int field4;
+	int field5;
+    } Source;
+
+    show line 101 to line 200 lines in source.cxx
+    $awk 'NR > 100 && NR <= 200' source.cxx
+
+    do code transform:
+    $awk 'NR > 100 && NR <= 200' source.cxx | awk '{print $2}' | awk 'BEGIN { FS = ';' } {print "dest->"$1" = src->"$1";"}'
+*** task: use awk auto generate code:
+For a given c/c++ struct in a file called *struct.h*:
+#+BEGIN_SRC c++
+typedef struct _TestClass
+{
+    int32_t field1;
+    int64_t field2;
+    char field3[10];
+    char field4;
+    uint64_t field5;
+} TestClass;
+#+END_SRC
+We want to generate a c++ function print this struct out,
+the following is the awk code:
+#+BEGIN_SRC awk
+#!/usr/bin/awk -f
+BEGIN {
+    final_code = ""
+}
+
+/struct/ {
+    final_code = final_code"void Print"$3"(const "substr($3, 2)"& para, std::ostream &output) {\n"
+}
+
+!/^}/ && !/{$/ && !/struct/ {
+    if ($2 ~ /];$/) {
+	left_para_pos = index($2, "[");
+	right_para_pos = index($2, "]");
+	carr_len = substr($2, left_para_pos + 1, right_para_pos - left_para_pos - 1)
+	code = "std::string(para."substr($2,0,left_para_pos-1)" , "carr_len")"
+	final_code = final_code"    output << "code" << ""\",\";\n"
+    } else {
+	final_code = final_code"    output << para."substr($2, 0, length($2) -1)" << \",\";\n"
+    }
+}
+
+/^}/ {
+    final_code = substr(final_code, 1, length(final_code) - 4)
+    final_code = final_code"\\n\";"
+    print final_code
+    print "}"
+}
+#+END_SRC
+
+Then excute the following command in shell:
+#+BEGIN_SRC shell
+$chmod +x ./code_gen.awk
+$cat struct.h | ./code_gen.awk
+#+END_SRC
+
+Will generate a function:
+#+BEGIN_SRC shell
+void Print_TestClass(const TestClass& para, std::ostream &output) {
+    output << para.field1 << ",";
+    output << para.field2 << ",";
+    output << std::string(para.field3 , 10) << ",";
+    output << para.field4 << ",";
+    output << para.field5 << "\n";
+}
+#+END_SRC
+** create a permanent bash alias
+append the following line into ~/.bashrc
+   alias genetags='find . -name *.h -print -o -name *.cxx -print | etags -'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+* Linux/Unix system programming:
+** advanced I/O：scatter-gather I/O
+*** writev:
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/uio.h>
+
+#define NAMELEN 20
+#define LOCLEN 30
+
+typedef struct _CarBrand {
+    char name[NAMELEN];
+    char location[30];
+    int history;
+}CarBrand;
+
+typedef struct _BikeBrand {
+    char name[NAMELEN];
+    char location[LOCLEN];
+    int history;
+    char china_or_foriegn;
+}BikeBrand;
+
+int main() {
+    CarBrand cbrands[] = {
+	{"Mercedes-Benz", "German", 100},
+	{"BMW", "German", 80},
+    };
+
+    BikeBrand bbrands[] = {
+	{"Trek", "American", 30, 'N'},
+	{"Fhoenix", "China", 30, 'Y'},
+    };
+
+    int cn = sizeof(cbrands)/sizeof(CarBrand);
+    int bn = sizeof(bbrands)/sizeof(BikeBrand);
+    int vn = cn > bn ? bn : cn;
+
+    struct iovec iov[2 * vn];
+    ssize_t nr;
+    int fd, i;
+
+    fd = open("vehicles.txt", O_WRONLY | O_CREAT | O_TRUNC);
+    if (fd == -1) {
+	perror("open");
+	return 1;
+    }
+
+    /* fill out iovec structures */
+    for (i = 0; i < vn; i++) {
+	iov[i * 2].iov_base = (char *)(cbrands + i);
+	iov[i * 2].iov_len = sizeof(CarBrand);
+	
+	iov[i * 2 +1].iov_base = (char *)(bbrands + i);
+	iov[i * 2 +1].iov_len = sizeof(BikeBrand);
+    }
+    
+    /* with a signal system call, write them all out */
+    nr = writev(fd, iov, 2 * vn);
+    if(nr == -1) {
+	perror("writev");
+	return 1;
+    }
+    printf("wrirte %ld bytes\n", nr);
+
+    if(close(fd)) {
+	perror("close");
+	return 1;
+    }
+    
+    return 0;
+}
+#+END_SRC
+*** readv:
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/uio.h>
+
+#define NAMELEN 20
+#define LOCLEN 30
+
+typedef struct _CarBrand {
+    char name[NAMELEN];
+    char location[30];
+    int history;
+}CarBrand;
+
+typedef struct _BikeBrand {
+    char name[NAMELEN];
+    char location[LOCLEN];
+    int history;
+    char china_or_foriegn;
+}BikeBrand;
+
+void print_carbrand(const CarBrand* cbrand) {
+    printf("------------------------------------\n");
+    printf("Brand Name: %s\n", cbrand->name);
+    printf("Brand Location: %s\n", cbrand->location);
+    printf("Created Since: %d\n", cbrand->history);
+    printf("------------------------------------\n");
+}
+
+void print_bikebrand(const BikeBrand* bbrand) {
+    printf("------------------------------------\n");
+    printf("Brand Name: %s\n", bbrand->name);
+    printf("Brand Location: %s\n", bbrand->location);
+    printf("Created Since: %d\n", bbrand->history);
+    printf("Is China Local: %c\n", bbrand->china_or_foriegn);
+    printf("------------------------------------\n");
+}
+
+int main() {
+    CarBrand cbrand;
+    BikeBrand bbrand;
+
+    struct iovec iov[2];
+    ssize_t nr;
+    int fd, i;
+    
+    fd = open("vehicles.txt", O_RDONLY);
+    if (fd == -1) {
+	perror("open");
+	return 1;
+    }
+
+    /* set up our iovec structure */
+    iov[0].iov_base = (char *)&cbrand;
+    iov[0].iov_len = sizeof(CarBrand);
+    iov[1].iov_base = (char *)&bbrand;
+    iov[1].iov_len = sizeof(BikeBrand);
+
+    for ( ; ; ) {
+	nr = readv(fd, iov, 2);
+	if (nr == -1) {
+	    perror("readv");
+	    return 1;
+	}
+
+	if(nr == 0) {
+	    printf("Finish Read file!\n");
+	    break;
+	}
+
+	print_carbrand((const CarBrand*)iov[0].iov_base);
+	print_bikebrand((const BikeBrand*)iov[1].iov_base);
+    }
+
+    return 0;
+}
+#+END_SRC
+
+
+* Emacs：
+** emacs tags:
+*** etags
+    find . -name \*.h -print -o -name \*.cxx -print | etags -
+* Git:
+** gerrit push to a branch:
+   git push ssh://sshusername@hostname:29418/projectname HEAD:refs/for/branch
+* C++：
+** serialization:
+*** data serialization, use boost
+ #+BEGIN_SRC c++
+ #include <fstream>
+ #include <iostream>
+ #include <boost/archive/text_oarchive.hpp>
+ #include <boost/archive/text_iarchive.hpp>
+
+ class gps_position {
+ private:
+     friend class boost::serialization::access;
+    
+     template<class Archive>
+     void serialize(Archive & ar, const unsigned int version) {
+	 ar & degrees;
+	 ar & minutes;
+	 ar & seconds;
+     }
+    
+     int degrees;
+     int minutes;
+     float seconds;
+
+ public:
+     gps_position() {}
+     gps_position(int d, int m, float s) :
+	 degrees(d), minutes(m), seconds(s)
+     {}
+
+     void self_tell () {
+	 std::cout << "Degrees: " << degrees << std::endl;
+	 std::cout << "Minutes: " << minutes << std::endl;
+	 std::cout << "Seconds: " << seconds << std::endl;
+     }
+ };
+
+ int main() {
+     std::ofstream ofs("filename");
+
+     gps_position g(34, 22, 12.234f);
+     g.self_tell();
+    
+     {
+	 boost::archive::text_oarchive oa(ofs);
+	 oa << g;
+     }
+
+     gps_position ng;
+     {
+	 std::ifstream ifs("filename");
+	 boost::archive::text_iarchive ia(ifs);
+	 ia >> ng;
+	 ng.self_tell();
+     }
+
+    
+     return 0;
+ }
+ #+END_SRC
+*** convert struct to binary file, then read back;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
